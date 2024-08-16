@@ -1,47 +1,43 @@
-name: "CodeQL"
+name: "CodeQL Analysis"
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main", "dev"]
   pull_request:
     branches: [ "main" ]
   schedule:
-    - cron: '26 13 * * 1'
+    - cron: '26 13 * * 1' # Runs every Monday at 13:26 UTC
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
-    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-
+    name: Analyze (Java and JavaScript)
+    runs-on: ubuntu-latest
+    
     strategy:
       fail-fast: false
       matrix:
-        language: ['java', 'javascript', 'html', 'csharp']  # Add more languages as needed
-
+        language: ['java-kotlin', 'javascript-typescript'] # Defines Java and JavaScript languages
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
 
-      - if: matrix.build-mode == 'manual'
-        shell: bash
-        run: |
-          # Add actual build commands here or remove this step if not needed
-          echo '  make bootstrap'
-          echo '  make release'
-          exit 1
+    - name: Build code (Java only)
+      if: matrix.language == 'java-kotlin'
+      run: |
+        # Set up Java environment
+        sudo apt-get update
+        sudo apt-get install -y maven
+        mvn clean install
+      shell: bash
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
