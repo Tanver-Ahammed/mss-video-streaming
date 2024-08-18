@@ -67,8 +67,10 @@ public class VideoService {
         }
     }
 
-    public Video findById(Long id) {
-        return null;
+    public Video findById(String videoId) {
+        return this.videoRepository.findById(videoId).orElseThrow(
+                () -> new RuntimeException("Video not found")
+        );
     }
 
     public Video findByTitle(String title) {
