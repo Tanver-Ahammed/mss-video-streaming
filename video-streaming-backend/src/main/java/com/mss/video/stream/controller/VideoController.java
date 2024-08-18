@@ -4,23 +4,23 @@ import com.mss.video.stream.entities.Video;
 import com.mss.video.stream.payload.CustomMessage;
 import com.mss.video.stream.service.VideoService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1videos/")
+@RequestMapping("/api/v1/videos")
+@CrossOrigin("http://localhost:5173/")
 public class VideoController {
 
     @Autowired
     private VideoService videoService;
 
+    // video uploader
     @PostMapping
     public ResponseEntity<?> createVideo(
             @RequestParam("file") MultipartFile file,
@@ -40,6 +40,19 @@ public class VideoController {
                     .body(CustomMessage.builder().message("Video not uploaded ")
                             .success(false).build());
         }
+    }
+
+    // stream video
+    @GetMapping("/stream/{videoId}")
+    public ResponseEntity<Resource> stream(
+            @PathVariable("videoId") String videoId
+    ) {
+
+        Video video = this.videoService.findById(videoId);
+        String contentType = video.getContentType();
+        String filePath = video.getFilePath();
+
+        return null;
     }
 
 }
