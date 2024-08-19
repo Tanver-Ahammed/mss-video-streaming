@@ -38,7 +38,7 @@ public class VideoService {
         }
     }
 
-    public Video save(Video video, MultipartFile file) {
+    public Video saveVideo(Video video, MultipartFile file) {
 
         try {
             // original file name
@@ -67,18 +67,18 @@ public class VideoService {
         }
     }
 
-    public Video findById(String videoId) {
+    public Video findVideoById(String videoId) {
         return this.videoRepository.findById(videoId).orElseThrow(
                 () -> new RuntimeException("Video not found")
         );
     }
 
-    public Video findByTitle(String title) {
+    public Video findVideoByTitle(String title) {
         return null;
     }
 
-    public List<Video> findAll() {
-        return null;
+    public List<Video> findAllVideos() {
+        return this.videoRepository.findAll();
     }
 
 }
