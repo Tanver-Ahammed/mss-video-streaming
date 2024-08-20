@@ -9,9 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,14 +25,23 @@ public class VideoService {
     @Value("${files.video}")
     private String DIRECTORY;
 
+    @Value("${files.video_hls}")
+    private String HLS_DIRECTORY;
+
     @PostConstruct
     public void init() {
         File file = new File(DIRECTORY);
+
         if (!file.exists()) {
             file.mkdir();
             System.out.println("Folder created");
         } else {
             System.out.println("Folder already exists");
+        }
+        try {
+            Files.createDirectories(Paths.get(HLS_DIRECTORY));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -59,7 +66,13 @@ public class VideoService {
             video.setContentType(contentType);
             video.setFilePath(path.toString());
 
-            return this.videoRepository.save(video);
+            // save video in db
+            Video savedVideo = this.videoRepository.save(video);
+
+            // file process
+            processVideo(savedVideo.getVideoId());
+
+            return video;
 
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -80,5 +93,133 @@ public class VideoService {
     public List<Video> findAllVideos() {
         return this.videoRepository.findAll();
     }
+
+    public String processVideo(String videoId) {
+
+        Video video = this.findVideoById(videoId);
+        String filePath = video.getFilePath();
+
+        //path where to store data:
+        Path videoPath = Paths.get(filePath);
+
+
+//        String output360p = HSL_DIR + videoId + "/360p/";
+//        String output720p = HSL_DIR + videoId + "/720p/";
+//        String output1080p = HSL_DIR + videoId + "/1080p/";
+
+        try {
+//            Files.createDirectories(Paths.get(output360p));
+//            Files.createDirectories(Paths.get(output720p));
+//            Files.createDirectories(Paths.get(output1080p));
+
+            // ffmpeg command
+            Path outputPath = Paths.get(HLS_DIRECTORY, videoId);
+
+            Files.createDirectories(outputPath);
+
+
+            String ffmpegCmd = String.format(
+                    "ffmpeg -i \"%s\" -c:v libx264 -c:a aac -strict -2 -f hls -hls_time 10 -hls_list_size 0 -hls_segment_filename \"%s/segment_%%3d.ts\"  \"%s/master.m3u8\" ",
+                    videoPath, outputPath, outputPath
+            );
+
+//            StringBuilder ffmpegCmd = new StringBuilder();
+//            ffmpegCmd.append("ffmpeg  -i ")
+//                    .append(videoPath.toString())
+//                    .append(" -c:v libx264 -c:a aac")
+//                    .append(" ")
+//                    .append("-map 0:v -map 0:a -s:v:0 640x360 -b:v:0 800k ")
+//                    .append("-map 0:v -map 0:a -s:v:1 1280x720 -b:v:1 2800k ")
+//                    .append("-map 0:v -map 0:a -s:v:2 1920x1080 -b:v:2 5000k ")
+//                    .append("-var_stream_map \"v:0,a:0 v:1,a:0 v:2,a:0\" ")
+//                    .append("-master_pl_name ").append(HSL_DIR).append(videoId).append("/master.m3u8 ")
+//                    .append("-f hls -hls_time 10 -hls_list_size 0 ")
+//                    .append("-hls_segment_filename \"").append(HSL_DIR).append(videoId).append("/v%v/fileSequence%d.ts\" ")
+//                    .append("\"").append(HSL_DIR).append(videoId).append("/v%v/prog_index.m3u8\"");
+
+
+            System.out.println(ffmpegCmd);
+            //file this command
+            ProcessBuilder processBuilder = new ProcessBuilder("/bin/bash", "-c", ffmpegCmd);
+            processBuilder.inheritIO();
+            Process process = processBuilder.start();
+            int exit = process.waitFor();
+            if (exit != 0) {
+                throw new RuntimeException("video processing failed!!");
+            }
+
+            return videoId;
+
+
+        } catch (IOException ex) {
+            throw new RuntimeException("Video processing fail!!");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+
+    }
+
+   /*
+    // video processing
+    public String videoProcess(String videoId, MultipartFile file) {
+        Video video = this.findVideoById(videoId);
+        String filePath = video.getFilePath();
+
+        Path videoPath = Paths.get(filePath);
+
+        String video360Path = HLS_DIRECTORY + videoId + "/360p/";
+        String video720Path = HLS_DIRECTORY + videoId + "/720p/";
+        String video1080Path = HLS_DIRECTORY + videoId + "/1080p/";
+
+        try {
+            // Create directories for HLS output
+            Files.createDirectories(Paths.get(video360Path));
+            Files.createDirectories(Paths.get(video720Path));
+            Files.createDirectories(Paths.get(video1080Path));
+
+            // ffmpeg command to generate HLS in different resolutions
+            String ffmpegCmd = String.format(
+                    "ffmpeg -i \"%s\" " +
+                            "-map 0:v -map 0:a -s:v:0 640x360 -b:v:0 800k " +
+                            "-map 0:v -map 0:a -s:v:1 1280x720 -b:v:1 2800k " +
+                            "-map 0:v -map 0:a -s:v:2 1920x1080 -b:v:2 5000k " +
+                            "-var_stream_map \"v:0,a:0 v:1,a:0 v:2,a:0\" " +
+                            "-master_pl_name \"%s/master.m3u8\" " +
+                            "-f hls -hls_time 10 -hls_list_size 0 " +
+                            "-hls_segment_filename \"%s/v%%v/segment_%%03d.ts\" " +
+                            "\"%s/v%%v/prog_index.m3u8\"",
+                    videoPath, HLS_DIRECTORY + videoId, HLS_DIRECTORY + videoId, HLS_DIRECTORY + videoId
+            );
+
+            System.out.println("Running command: " + ffmpegCmd);
+
+            // Execute the command
+            ProcessBuilder processBuilder = new ProcessBuilder("/bin/bash", "-c", ffmpegCmd);
+
+            // Redirect output and error streams to capture logs
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+
+            // Capture the command output and error messages
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("Video processing failed with exit code: " + exitCode);
+            }
+
+            return videoId;
+
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+*/
+
 
 }
