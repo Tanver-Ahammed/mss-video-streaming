@@ -5,6 +5,7 @@ import com.mss.video.stream.payload.AppConstants;
 import com.mss.video.stream.payload.CustomMessage;
 import com.mss.video.stream.service.VideoService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -30,6 +31,9 @@ public class VideoController {
 
     @Autowired
     private VideoService videoService;
+
+    @Value("${files.video_hls}")
+    private String HSL_DIR;
 
     // video uploader
     @PostMapping
@@ -160,6 +164,51 @@ public class VideoController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
 
+    }
+
+    // serve hls playlist
+    // master.m2u8 file
+    @GetMapping("/{videoId}/master.m3u8")
+    public ResponseEntity<Resource> serverMasterFile(
+            @PathVariable String videoId
+    ) {
+
+        // creating path
+        Path path = Paths.get(HSL_DIR, videoId, "master.m3u8");
+
+        System.out.println(path);
+
+        if (!Files.exists(path)) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        Resource resource = new FileSystemResource(path);
+
+        return ResponseEntity
+                .ok()
+                .header(HttpHeaders.CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                .body(resource);
+    }
+
+    //serve the segments
+    @GetMapping("/{videoId}/{segment}.ts")
+    public ResponseEntity<Resource> serveSegments(
+            @PathVariable String videoId,
+            @PathVariable String segment
+    ) {
+
+        // create path for segment
+        Path path = Paths.get(HSL_DIR, videoId, segment + ".ts");
+        if (!Files.exists(path)) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        Resource resource = new FileSystemResource(path);
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.CONTENT_TYPE, "video/mp2t"
+                )
+                .body(resource);
 
     }
 
